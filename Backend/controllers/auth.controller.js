@@ -63,3 +63,76 @@ export const login = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// Admin login - only allows admin role users
+export const adminLogin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    console.log("Admin login attempt:", { email, password });
+
+    // 1️⃣ Find user
+    const user = await User.findOne({ email });
+    console.log("User found:", user ? { email: user.email, role: user.role, hasPassword: !!user.password } : "No user");
+    
+    if (!user) {
+      return res.status(400).json({ message: "Invalid credentials - user not found" });
+    }
+
+    // 2️⃣ Check if user is admin
+    if (user.role !== "admin") {
+      return res.status(403).json({ message: "Access denied. Admin only." });
+    }
+
+    // 3️⃣ Compare password
+    console.log("Comparing password...");
+    const isMatch = await bcrypt.compare(password, user.password);
+    console.log("Password match:", isMatch);
+    
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid credentials - wrong password" });
+    }
+
+    // 4️⃣ Generate JWT
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1d" });
+
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Setup endpoint to create admin user (for initial setup only)
+export const setupAdmin = async (req, res) => {
+  try {
+    // Delete existing admin and create fresh one
+    await User.deleteOne({ email: "admin@factory.com" });
+
+    // Create admin user with fresh password hash
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash("admin123", salt);
+
+    const admin = await User.create({
+      name: "Admin User",
+      email: "admin@factory.com",
+      password: hashedPassword,
+      role: "admin"
+    });
+
+    res.status(201).json({
+      message: "Admin user created/reset successfully!",
+      email: "admin@factory.com",
+      password: "admin123",
+      userId: admin._id
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

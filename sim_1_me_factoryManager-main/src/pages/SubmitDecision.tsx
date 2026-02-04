@@ -1,17 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
-import { useAuth } from '../hooks/useAuth';
 import { getCurrentRound } from '../data/dummyData';
 import {
   calculateOutputLevel1,
   calculateCostsLevel1,
   calculateOptimalLaborLevel1
 } from '../utils/productionFunctions';
-import { Calculator, TrendingDown, CheckCircle } from 'lucide-react';
+import { submitLevel1Decision, checkSubmissionStatus } from '../utils/api';
+import { Calculator, TrendingDown, CheckCircle, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const SubmitDecision = () => {
-  const { user } = useAuth();
   const currentRound = getCurrentRound() || {
     id: 'demo-round',
     session_id: 'session-1',
@@ -31,7 +30,42 @@ export const SubmitDecision = () => {
   };
   const [labor, setLabor] = useState<number>(4);
   const [submitted, setSubmitted] = useState(false);
+  const [alreadySubmitted, setAlreadySubmitted] = useState(false);
+  const [previousResult, setPreviousResult] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    checkExistingSubmission();
+  }, []);
+
+  const checkExistingSubmission = async () => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) {
+        setLoading(false);
+        return;
+      }
+      
+      const userData = JSON.parse(storedUser);
+      const playerId = userData._id || userData.id;
+      
+      if (!playerId) {
+        setLoading(false);
+        return;
+      }
+
+      const status = await checkSubmissionStatus(playerId);
+      if (status.level1?.submitted) {
+        setAlreadySubmitted(true);
+        setPreviousResult(status.level1.result);
+      }
+    } catch (error) {
+      console.error('Error checking submission status:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const calculateEstimates = () => {
     if (!currentRound || labor <= 0) {
@@ -64,13 +98,50 @@ export const SubmitDecision = () => {
 
   const estimates = calculateEstimates();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      navigate('/submit-decision-level2');
-    }, 3000);
+    
+    if (alreadySubmitted) {
+      alert('You have already submitted for this level!');
+      return;
+    }
+
+    try {
+      // Get user from localStorage
+      const storedUser = localStorage.getItem('user');
+      const userData = storedUser ? JSON.parse(storedUser) : null;
+      const playerId = userData?._id || userData?.id;
+
+      if (!playerId) {
+        alert('Please login to submit your decision');
+        return;
+      }
+
+      // Submit to backend
+      const response = await submitLevel1Decision({
+        playerId,
+        sessionId: currentRound.session_id,
+        labor,
+        fixedCapital: currentRound.fixed_capital || 10,
+        wageRate: currentRound.wage_rate,
+        outputPrice: currentRound.output_price,
+      });
+
+      if (response.alreadySubmitted) {
+        setAlreadySubmitted(true);
+        setPreviousResult(response.result);
+        alert(response.error);
+        return;
+      }
+
+      setSubmitted(true);
+      setTimeout(() => {
+        navigate('/submit-decision-level2');
+      }, 2000);
+    } catch (error) {
+      console.error('Error submitting decision:', error);
+      alert('Failed to submit decision. Please try again.');
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -81,6 +152,75 @@ export const SubmitDecision = () => {
     ? calculateOptimalLaborLevel1(currentRound.output_price, currentRound.wage_rate)
     : null;
 
+  if (loading) {
+    return (
+      <Layout>
+        <div className="p-8 flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (alreadySubmitted && previousResult) {
+    return (
+      <Layout>
+        <div className="p-8 max-w-4xl mx-auto">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">Level 1</h1>
+          </div>
+
+          <div className="bg-yellow-50 border-l-4 border-yellow-500 p-6 rounded-lg mb-6">
+            <div className="flex items-center">
+              <Lock className="w-8 h-8 text-yellow-600 mr-4" />
+              <div>
+                <h3 className="text-lg font-semibold text-yellow-900">Already Submitted</h3>
+                <p className="text-yellow-700 mt-1">
+                  You have already submitted your decision for Level 1. Only one submission per level is allowed.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Your Submission</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-xs text-gray-600">Labor</p>
+                <p className="text-lg font-bold text-gray-900">{previousResult.labor} workers</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-xs text-gray-600">Output</p>
+                <p className="text-lg font-bold text-gray-900">{previousResult.output?.toFixed(2)} units</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-xs text-gray-600">Total Cost</p>
+                <p className="text-lg font-bold text-gray-900">{formatCurrency(previousResult.totalCost || 0)}</p>
+              </div>
+              <div className={`p-4 rounded-lg ${previousResult.profit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                <p className="text-xs text-gray-600">Profit</p>
+                <p className={`text-lg font-bold ${previousResult.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(previousResult.profit || 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <button
+              onClick={() => navigate('/submit-decision-level2')}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-lg transition-colors text-lg"
+            >
+              Continue to Level 2 →
+            </button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>

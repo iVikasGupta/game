@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
-import { Calculator, TrendingDown, CheckCircle } from 'lucide-react';
+import { Calculator, TrendingDown, CheckCircle, Lock } from 'lucide-react';
+import { submitLevel4Decision, checkSubmissionStatus } from '../utils/api';
 
 // Level 4 Parameters
 const A = 5;
@@ -16,15 +17,41 @@ const TFC = rentalRate * K_FIXED;
 export const SubmitDecisionLevel4 = () => {
   const [labor, setLabor] = useState<number>(15);
   const [submitted, setSubmitted] = useState(false);
+  const [alreadySubmitted, setAlreadySubmitted] = useState(false);
+  const [previousResult, setPreviousResult] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Always check for 'user' in localStorage (not 'currentUser')
     const storedUser = localStorage.getItem('user');
     if (!storedUser) {
       navigate('/login');
+      return;
     }
+    checkExistingSubmission();
   }, [navigate]);
+
+  const checkExistingSubmission = async () => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) return;
+      
+      const userData = JSON.parse(storedUser);
+      const playerId = userData._id || userData.id;
+      
+      if (!playerId) return;
+
+      const status = await checkSubmissionStatus(playerId);
+      if (status.level4?.submitted) {
+        setAlreadySubmitted(true);
+        setPreviousResult(status.level4.result);
+      }
+    } catch (error) {
+      console.error('Error checking submission status:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Production Calculations
   const output = A * Math.pow(labor, alpha) * Math.pow(K_FIXED, beta);
@@ -42,7 +69,6 @@ export const SubmitDecisionLevel4 = () => {
   // Revenue & Profit
   const TR = output * outputPrice;
   const profit = TR - TC;
-  const economicProfit = profit; // For this context
 
   // Shutdown Decision
   const shutdownRule = outputPrice > AVC ? 'Operate' : 'Shutdown';
@@ -57,18 +83,138 @@ export const SubmitDecisionLevel4 = () => {
     bestDecision = 'Shutdown';
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent resubmission
+    if (alreadySubmitted) {
+      alert('You have already submitted for this level!');
+      return;
+    }
+    
     setSubmitted(true);
-    setTimeout(() => {
+
+    try {
+      const storedUser = localStorage.getItem('user');
+      const userData = storedUser ? JSON.parse(storedUser) : null;
+
+      const result = await submitLevel4Decision({
+        playerId: userData?._id || userData?.id || 'anonymous',
+        sessionId: 'session-1',
+        labor,
+        fixedCapital: K_FIXED,
+        wageRate,
+        rentalRate,
+        outputPrice,
+        A,
+        alpha,
+        beta,
+      });
+      
+      // Check if submission was blocked due to existing submission
+      if (result.alreadySubmitted) {
+        setAlreadySubmitted(true);
+        setPreviousResult(result.result || result);
+        alert('You have already submitted for this level!');
+        return;
+      }
+      
+      setTimeout(() => {
+        setSubmitted(false);
+        navigate('/submit-decision-level5');
+      }, 3000);
+    } catch (error: unknown) {
+      console.error('Error submitting decision:', error);
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { alreadySubmitted?: boolean } } };
+        if (axiosError.response?.data?.alreadySubmitted) {
+          setAlreadySubmitted(true);
+          alert('You have already submitted for this level!');
+        }
+      }
       setSubmitted(false);
-      navigate('/submit-decision-level5');
-    }, 3000);
+    }
   };
 
   const formatCurrency = (amount: number) => {
     return `Rs. ${(amount / 100000).toFixed(2)}L`;
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <Layout>
+        <div className="p-8 max-w-6xl mx-auto flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Already submitted state
+  if (alreadySubmitted && previousResult) {
+    return (
+      <Layout>
+        <div className="p-8 max-w-4xl mx-auto">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">Level 4 - Already Submitted</h1>
+          </div>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 mb-6">
+            <div className="flex items-center mb-4">
+              <Lock className="w-6 h-6 text-yellow-600 mr-2" />
+              <h2 className="text-xl font-bold text-yellow-800">Submission Locked</h2>
+            </div>
+            <p className="text-yellow-700">
+              You have already submitted your decision for Level 4. Each player can only submit once per level.
+            </p>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Your Previous Submission</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-600">Labor (L)</p>
+                <p className="text-xl font-bold text-gray-900">{previousResult.labor as number || 'N/A'}</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-600">Fixed Capital (K)</p>
+                <p className="text-xl font-bold text-gray-900">{previousResult.fixedCapital as number || K_FIXED}</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-600">Output</p>
+                <p className="text-xl font-bold text-gray-900">{(previousResult.output as number)?.toFixed(2) || 'N/A'}</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-600">Total Cost</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(previousResult.totalCost as number || 0)}</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-600">Total Revenue</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(previousResult.totalRevenue as number || 0)}</p>
+              </div>
+              <div className={`p-4 rounded-lg ${(previousResult.profit as number) >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                <p className="text-sm text-gray-600">Profit</p>
+                <p className={`text-xl font-bold ${(previousResult.profit as number) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(previousResult.profit as number || 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => navigate('/submit-decision-level5')}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-lg transition-colors text-lg"
+          >
+            Continue to Level 5 →
+          </button>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -129,9 +275,14 @@ export const SubmitDecisionLevel4 = () => {
               <div className="pt-4">
                 <button
                   type="submit"
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-4 rounded-lg transition-colors text-lg"
+                  disabled={alreadySubmitted}
+                  className={`w-full font-semibold py-4 rounded-lg transition-colors text-lg ${
+                    alreadySubmitted 
+                      ? 'bg-gray-400 cursor-not-allowed text-gray-200' 
+                      : 'bg-green-600 hover:bg-green-700 text-white'
+                  }`}
                 >
-                  Submit Decision
+                  {alreadySubmitted ? 'Already Submitted' : 'Submit Decision'}
                 </button>
               </div>
             </form>
