@@ -46,7 +46,9 @@ const Results = () => {
   const fetchUsers = async () => {
     try {
       const res = await api.get("/admin/users");
-      setUsers(res.data);
+      console.log("Users API response 👉", res.data);
+      // Handle both { users: [...] } and direct array response
+      setUsers(res.data?.users || res.data || []);
     } catch (err) {
       console.error("Failed to fetch users:", err);
     }

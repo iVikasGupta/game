@@ -8,6 +8,9 @@ const Users = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [newPassword, setNewPassword] = useState("");
   const [newUser, setNewUser] = useState({
     name: "",
     email: "",
@@ -87,7 +90,6 @@ const Users = () => {
       alert(err.response?.data?.message || "Failed to delete user");
     }
   };
-
   // =========================
   // Change role
   // =========================
@@ -102,6 +104,30 @@ const Users = () => {
       setUsers((prev) => prev.map((u) => (u._id === userId ? updatedUser : u)));
     } catch (err) {
       alert(err.response?.data?.message || "Failed to update role");
+    }
+  };
+
+  // =========================
+  // Change password
+  // =========================
+  const openPasswordModal = (user) => {
+    setSelectedUser(user);
+    setNewPassword("");
+    setShowPasswordModal(true);
+  };
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    if (!selectedUser || !newPassword) return;
+
+    try {
+      await api.patch(`/admin/users/${selectedUser._id}/password`, { password: newPassword });
+      alert("Password updated successfully!");
+      setShowPasswordModal(false);
+      setSelectedUser(null);
+      setNewPassword("");
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to update password");
     }
   };
 
@@ -173,9 +199,14 @@ const Users = () => {
                             <option value="instructor">Instructor</option>
                             <option value="admin">Admin</option>
                           </select>
-                        </td>
-                        <td>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "-"}</td>
+                        </td>                        <td>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "-"}</td>
                         <td>
+                          <button 
+                            className="btn btn-warning btn-sm me-2" 
+                            onClick={() => openPasswordModal(user)}
+                          >
+                            🔑 Password
+                          </button>
                           <button className="btn btn-danger btn-sm" onClick={() => handleDeleteUser(user._id)}>
                             🗑️ Delete
                           </button>
@@ -254,6 +285,48 @@ const Users = () => {
                   </button>
                   <button type="submit" className="btn btn-success" disabled={creating}>
                     {creating ? "Creating..." : "Create User"}
+                  </button>                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= Change Password Modal ================= */}
+      {showPasswordModal && selectedUser && (
+        <div className="modal show d-block" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">🔑 Change Password</h5>
+                <button className="btn-close" onClick={() => setShowPasswordModal(false)} />
+              </div>
+
+              <form onSubmit={handlePasswordChange}>
+                <div className="modal-body">
+                  <p className="text-muted mb-3">
+                    Changing password for: <strong>{selectedUser.name}</strong> ({selectedUser.email})
+                  </p>
+                  <div className="mb-3">
+                    <label className="form-label">New Password *</label>
+                    <input
+                      type="password"
+                      className="form-control"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      minLength={6}
+                      placeholder="Enter new password (min 6 characters)"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowPasswordModal(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-warning">
+                    Update Password
                   </button>
                 </div>
               </form>
