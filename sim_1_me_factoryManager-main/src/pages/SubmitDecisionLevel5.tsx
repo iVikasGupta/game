@@ -41,10 +41,10 @@ export const SubmitDecisionLevel5 = () => {
     try {
       const storedUser = localStorage.getItem('user');
       if (!storedUser) return;
-      
+
       const userData = JSON.parse(storedUser);
       const playerId = userData._id || userData.id;
-      
+
       if (!playerId) return;
 
       const status = await checkSubmissionStatus(playerId);
@@ -113,8 +113,14 @@ export const SubmitDecisionLevel5 = () => {
     return q > 0 ? tc / q : 0;
   })();
   const LRAC = Math.min(sracSmall, sracMedium, sracLarge);
-  const optimalPlantAtOutput =
-    LRAC === sracSmall ? 'Small' : LRAC === sracMedium ? 'Medium' : 'Large';
+  let optimalPlantAtOutput = '';
+  if (Math.abs(LRAC - sracSmall) < 0.001) {
+    optimalPlantAtOutput = 'Small';
+  } else if (Math.abs(LRAC - sracMedium) < 0.001) {
+    optimalPlantAtOutput = 'Medium';
+  } else {
+    optimalPlantAtOutput = 'Large';
+  }
   const costDiff = SRAC - LRAC;
 
   // Revenue & profit
@@ -134,8 +140,8 @@ export const SubmitDecisionLevel5 = () => {
 
   // MES (Minimum Efficient Scale)
   let MES = '';
-  if (LRAC === sracSmall) MES = '< 150 units';
-  else if (LRAC === sracMedium) MES = '150-400 units';
+  if (Math.abs(LRAC - sracSmall) < 0.001) MES = '< 150 units';
+  else if (Math.abs(LRAC - sracMedium) < 0.001) MES = '150-400 units';
   else MES = '> 400 units';
 
   // Economies of scale
@@ -143,18 +149,33 @@ export const SubmitDecisionLevel5 = () => {
   if (SRAC > LRAC) scaleStatus = 'Not at Minimum Efficient Scale (MES)';
   else scaleStatus = 'At MES (Efficient Scale)';
 
+  // Calculate minimum labor needed for selected plant to reach recommended output range
+  const minLaborForOptimal = (() => {
+    // Determine the minimum output for the selected plant's optimal range
+    let minOutput = 0;
+    if (selectedPlant.label === 'Small') minOutput = 100; // Aim for low end of "< 150"
+    else if (selectedPlant.label === 'Medium') minOutput = 200; // Aim for low end of "150-400"
+    else minOutput = 450; // Aim for low end of "> 400"
+
+    // Q = 5 * L^0.5 * K^0.5
+    // L = (Q / (5 * K^0.5))^2
+    const k = selectedPlant.K;
+    const minL = Math.pow(minOutput / (A * Math.pow(k, beta)), 2 / alpha);
+    return Math.ceil(minL);
+  })();
+
   // Format helpers
   const formatCurrency = (amount: number) => `Rs. ${(amount / 100000).toFixed(2)}L`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Prevent resubmission
     if (alreadySubmitted) {
       alert('You have already submitted for this level!');
       return;
     }
-    
+
     setSubmitted(true);
 
     try {
@@ -173,7 +194,7 @@ export const SubmitDecisionLevel5 = () => {
         alpha,
         beta,
       });
-      
+
       // Check if submission was blocked due to existing submission
       if (result.alreadySubmitted) {
         setAlreadySubmitted(true);
@@ -181,7 +202,7 @@ export const SubmitDecisionLevel5 = () => {
         alert('You have already submitted for this level!');
         return;
       }
-      
+
       // All levels completed - navigate to leaderboard
       setTimeout(() => {
         setSubmitted(false);
@@ -323,7 +344,7 @@ export const SubmitDecisionLevel5 = () => {
                   id="labor"
                   type="range"
                   min="1"
-                  max="50"
+                  max="150"
                   step="1"
                   value={labor}
                   onChange={(e) => setLabor(parseInt(e.target.value))}
@@ -333,17 +354,20 @@ export const SubmitDecisionLevel5 = () => {
                   <span>1</span>
                   <span>25</span>
                   <span>50</span>
+                  <span>75</span>
+                  <span>100</span>
+                  <span>125</span>
+                  <span>150</span>
                 </div>
               </div>
               <div className="pt-4">
                 <button
                   type="submit"
                   disabled={alreadySubmitted}
-                  className={`w-full font-semibold py-4 rounded-lg transition-colors text-lg ${
-                    alreadySubmitted 
-                      ? 'bg-gray-400 cursor-not-allowed text-gray-200' 
-                      : 'bg-green-600 hover:bg-green-700 text-white'
-                  }`}
+                  className={`w-full font-semibold py-4 rounded-lg transition-colors text-lg ${alreadySubmitted
+                    ? 'bg-gray-400 cursor-not-allowed text-gray-200'
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+                    }`}
                 >
                   {alreadySubmitted ? 'Already Submitted' : 'Submit Decision'}
                 </button>
@@ -379,13 +403,20 @@ export const SubmitDecisionLevel5 = () => {
                   <p className="text-3xl font-bold text-blue-900">{output.toFixed(2)} units</p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-sm mb-3">
                     <span>Output Range:</span>
                     <span className="font-semibold">{outputRange}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Optimal Plant for Output:</span>
+                  <div className="flex justify-between text-sm mb-3">
+                    <span>Recommended Plant Size:</span>
                     <span className={`font-semibold ${isOptimal ? 'text-green-700' : 'text-orange-700'}`}>{optimalPlant}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Your Selection:</span>
+                    <span className="font-semibold text-blue-700">{selectedPlant.label}</span>
+                  </div>
+                  <div className={`mt-2 p-2 rounded text-xs ${isOptimal ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}`}>
+                    {isOptimal ? '✓ You selected the optimal plant size!' : `⚠ Your ${selectedPlant.label} plant needs L ≥ ${minLaborForOptimal} for recommended output`}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
