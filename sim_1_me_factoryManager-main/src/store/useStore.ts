@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import { User, GameSession, SessionPlayer, Round, Decision } from '../data/dummyData';
+import { create } from "zustand";
+import { Decision } from "../data/dummyData";
 
 interface AppState {
   currentDecision: Decision | null;
@@ -8,5 +8,5 @@ interface AppState {
 
 export const useStore = create<AppState>((set) => ({
   currentDecision: null,
-  setCurrentDecision: (currentDecision) => set({ currentDecision })
+  setCurrentDecision: (currentDecision) => set({ currentDecision }),
 }));

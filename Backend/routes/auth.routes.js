@@ -3,16 +3,16 @@ import { register, login, adminLogin, setupAdmin } from "../controllers/auth.con
 
 const router = express.Router();
 
-// 👇 REGISTER ENDPOINT
+//  REGISTER ENDPOINT
 router.post("/register", register);
 
-// 👇 LOGIN ENDPOINT
+//  LOGIN ENDPOINT
 router.post("/login", login);
 
-// 👇 ADMIN LOGIN ENDPOINT
+//  ADMIN LOGIN ENDPOINT
 router.post("/admin-login", adminLogin);
 
-// 👇 SETUP ADMIN (one-time use)
+//  SETUP ADMIN (one-time use)
 router.get("/setup-admin", setupAdmin);
 
 export default router;

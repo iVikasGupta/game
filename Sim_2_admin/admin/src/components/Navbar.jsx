@@ -35,19 +35,19 @@ const Navbar = () => {
               </li>
 
               <li className="nav-item ">
-                <Link className="nav-link" to="/admin/courses">
-                  #
+                <Link className="nav-link" to="/admin/users">
+                  Users
                 </Link>
               </li>
 
               <li className="nav-item">
-                <Link className="nav-link " to="/admin/scripts">
-                  #
+                <Link className="nav-link " to="/admin/groups">
+                  Groups
                 </Link>
               </li>
               <li className="nav-item">
-                <Link className="nav-link " to="/admin/lessons">
-                  #
+                <Link className="nav-link " to="/admin/results">
+                  Results
                 </Link>
               </li>
               <li className="nav-item  ">
