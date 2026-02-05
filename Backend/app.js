@@ -2,10 +2,14 @@ import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
+import dns from "dns";
 import authRoutes from "./routes/auth.routes.js";
 import decisionRoutes from "./routes/decision.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import groupRoutes from "./routes/group.routes.js";
+
+// Set DNS servers to Google DNS to fix SRV lookup issues
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 dotenv.config();
 

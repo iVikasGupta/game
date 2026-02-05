@@ -10,7 +10,7 @@ const router = express.Router();
 router.get("/users", async (req, res) => {
   try {
     const users = await User.find({}).select("-password").sort({ createdAt: -1 });
-    res.json(users);
+    res.json({ success: true, users });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -53,7 +53,7 @@ router.post("/users", async (req, res) => {
       createdAt: user.createdAt,
     };
 
-    res.status(201).json(userResponse);
+    res.status(201).json({ success: true, user: userResponse });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

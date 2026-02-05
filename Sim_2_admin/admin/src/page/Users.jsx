@@ -30,8 +30,9 @@ const Users = () => {
 
       const res = await api.get("/admin/users");
 
-      // Backend expected response:
-      // { success: true, users: [...] }
+      // 🔍 STEP 1: LOG RESPONSE
+      console.log("Users API response 👉", res.data);
+
       setUsers(res.data?.users || []);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to fetch users");
