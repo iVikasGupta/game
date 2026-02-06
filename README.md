@@ -17,5 +17,3 @@ The solution is built with a strong focus on:
 
 ---
 
-## 2. System Architecture
-
