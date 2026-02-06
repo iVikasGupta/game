@@ -37,12 +37,6 @@ export const Login = () => {
 
         <h2 className="text-2xl font-semibold text-gray-800 mb-6 text-center">Sign In</h2>
 
-        <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg mb-4">
-          <p className="text-sm font-semibold mb-1">Demo Credentials:</p>
-          <p className="text-xs">Email: john.doe@university.edu</p>
-          <p className="text-xs">Password: any password (6+ characters)</p>
-        </div>
-
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
             {error}
